@@ -1,3 +1,6 @@
+KONIAN Ange-Marie Adingra
+NDE Daniel Nolan Nathanaël
+
 # MOS/NOS Backend Playground
 
 This repository contains a Next.js workspace that targets the MOS/NOS interoperability specifications. The domain layer models core data classes (personnes physiques, professionnels, autorisations, capacités, dispositifs d'authentification, etc.) and exposes TypeScript serializers to keep MongoDB documents aligned with the MOS nomenclatures.
