@@ -1,93 +1,189 @@
-KONIAN Ange-Marie Adingra
-NDE Daniel Nolan Nathanaël
+# Plateforme de Coordination Ville-Hôpital - Epitanie
 
-# MOS/NOS Backend Playground
+## Vue d'ensemble
 
-This repository contains a Next.js workspace that targets the MOS/NOS interoperability specifications. The domain layer models core data classes (personnes physiques, professionnels, autorisations, capacités, dispositifs d'authentification, etc.) and exposes TypeScript serializers to keep MongoDB documents aligned with the MOS nomenclatures.
+Epitanie est une plateforme full-stack de coordination entre professionnels de santé (médecins, infirmiers, secrétariats) et patients pour la gestion centralisée de dossiers médicaux, rendez-vous et analyses biologiques.
+
+### Stack technique
+
+- **Frontend/Backend**: Next.js 16+ (App Router) avec TypeScript
+- **UI**: Tailwind CSS + composants shadcn/ui
+- **Base de données**: MongoDB avec Mongoose
+- **Authentification**: Keycloak (OIDC) avec RBAC
+- **Déploiement**: Vercel-ready
+
+## Architecture
+
+\`\`\`
+epitanie/
+├── app/
+│   ├── api/              # Route handlers API
+│   ├── dashboard/        # Pages protégées
+│   ├── layout.tsx        # Layout principal
+│   └── page.tsx          # Accueil
+├── lib/
+│   ├── db/
+│   │   ├── connection.ts # Connexion MongoDB
+│   │   └── models/       # Schemas Mongoose
+│   ├── types/            # Types TypeScript
+│   └── keycloak.ts       # Utilitaires Keycloak
+├── components/           # Composants React
+└── public/               # Assets statiques
+\`\`\`
+
+## Modèles de données
+
+### Entités principales
+
+1. **User** - Utilisateur Keycloak synchronisé en base
+2. **Patient** - Dossier patient avec cercle de soins
+3. **ProfessionnelDeSante** - Médecin ou Infirmier
+4. **Etablissement** - Hôpital, cabinet, laboratoire
+5. **RendezVous** - Consultation planifiée
+6. **DocumentClinique** - Compte-rendu, courrier, imagerie
+7. **AnalyseBiologique** - Résultats d'analyses
+8. **MessageInterne** - Communication interne
+
+## Installation et configuration
+
+### Prérequis
+
+- Node.js 18+
+- MongoDB 6+
+- Keycloak 24+ (optionnel pour le dev local)
+- Docker (recommandé pour MongoDB et Keycloak)
+
+### 1. Cloner et installer
+
+\`\`\`bash
+git clone <repo-url>
+cd epitanie
+npm install
+\`\`\`
+
+### 2. Configurer MongoDB
+
+**Avec Docker** :
+\`\`\`bash
+docker run -d \
+  --name mongodb \
+  -p 27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=root \
+  -e MONGO_INITDB_ROOT_PASSWORD=password \
+  mongo:7
+\`\`\`
+
+**Connection string** :
+\`\`\`
+mongodb://root:password@localhost:27017/epitanie?authSource=admin
+\`\`\`
+
+### 3. Configurer Keycloak
+
+**Avec Docker** :
+\`\`\`bash
+docker run -d \
+  --name keycloak \
+  -p 8080:8080 \
+  -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+  -e KC_BOOTSTRAP_ADMIN_PASSWORD=password \
+  quay.io/keycloak/keycloak:24.0 \
+  start-dev
+\`\`\`
+
+#### Configuration du Realm Keycloak
+
+1. Accéder à http://localhost:8080/admin (admin/password)
+2. Créer un nouveau Realm : `epitanie`
+3. Créer un Client : `epitanie-app`
+   - Access Type: confidential
+   - Valid Redirect URIs: `http://localhost:3000/*`
+   - Web Origins: `http://localhost:3000`
+4. Créer les rôles :
+   - ROLE_PATIENT
+   - ROLE_MEDECIN
+   - ROLE_INFIRMIER
+   - ROLE_SECRETARIAT
+   - ROLE_ADMIN
+5. Mapper les rôles au client (Client Scopes > roles)
+
+### 4. Configurer les variables d'environnement
+
+Copier `.env.local.example` en `.env.local` et ajuster :
+
+\`\`\`bash
+cp .env.local.example .env.local
+\`\`\`
+
+Éditer `.env.local` avec vos valeurs :
+- `MONGODB_URI`: connexion MongoDB
+- `KEYCLOAK_*`: URL et credentials Keycloak
+- `NEXT_PUBLIC_*`: variables publiques
+
+### 5. Lancer l'application
+
+\`\`\`bash
+npm run dev
+\`\`\`
+
+L'app est accessible sur http://localhost:3000
+
+## Architecture API
+
+### Principes
+
+- Authentification JWT via Keycloak sur toutes les routes `/api/*`
+- Autorisation RBAC : chaque route vérifie rôles et permissions
+- Isolation des données : cercle de soins, appartenance client-patient, etc.
+
+### Endpoints (à implémenter)
+
+| Route | Méthode | Description |
+|-------|---------|-------------|
+| `/api/patients` | GET, POST | Gestion patients |
+| `/api/patients/[id]` | GET, PATCH | Détail et modification |
+| `/api/rendezvous` | GET, POST | Gestion rendez-vous |
+| `/api/documents` | GET, POST | Gestion documents cliniques |
+| `/api/analyses` | GET, POST | Gestion analyses biologiques |
+| `/api/messages` | GET, POST | Messagerie interne |
+
+## Dashboards par rôle
+
+### ADMIN
+- Gestion utilisateurs et Keycloak
+- CRUD établissements et professionnels
+- Vue synthétique globale
+
+### SECRETARIAT
+- Gestion des rendez-vous (création, modification)
+- Gestion des patients et documents
+- Filtrage par date et professionnel
+
+### MEDECIN / INFIRMIER
+- Fiche patient détaillée (cercle de soins)
+- Création de documents cliniques
+- Prescription d'analyses biologiques
+
+### PATIENT
+- Fiche personnelle (lecture seule)
+- Rendez-vous personnels
+- Documents et résultats d'analyses
+- Messagerie interne
+
+## Extensions futures
+
+- Intégration FHIR pour interopérabilité
+- Stockage fichiers (S3, Vercel Blob)
+- Signature électronique de documents
+- Notifications email/SMS
+- Calendrier interactif
+- Export PDF de dossiers
+
+## Support et contribution
+
+Pour les questions ou bugs, ouvrir une issue sur le dépôt.
 
 ---
 
-## Prerequisites
-
-1. **Node.js 20+** (or a recent LTS). Install dependencies once:
-   ```bash
-   npm install
-   ```
-2. **MongoDB database** accessible from your workstation. Configure credentials in `.env`:
-   ```env
-   MONGODB_URI=mongodb+srv://<user>:<password>@cluster.example.mongodb.net/?retryWrites=true&w=majority
-   MONGODB_DB=la_clinique
-   ```
-   The seed script uses these variables through `src/config/env.ts`.
-
----
-
-## Populating Sample MOS Data
-
-A TypeScript seeding script in `scripts/seed.ts` inserts a coherent dataset that relies on the NOS mapping defined in `src/domain/nos.ts` (civilités, rôles, usages de certificats, etc.).
-
-Run it with:
-```bash
-npm run seed
-```
-
-What the script does:
-- Flushes previous demo data whose metadata was tagged as generated by the seeder.
-- Inserts a **personne physique** (Jean Dupont) referencing NOS codes (civilité, sexe, profession).
-- Adds a **dispositif d'authentification** (CPS card + certificate) bound to the professional’s exercise.
-- Creates a **professionnel** record embedding the dispositif, a **personne prise en charge**, and an **autorisation** with capacité d’accueil.
-
-Every inserted document carries a `metadonnee.commentaire` referencing `seed-script` so you can identify or purge the sample rows later.
-
-To remove the dataset, re-run `npm run seed` (the script deletes existing tagged entries before re-inserting) or execute in `mongosh`:
-```javascript
-db.professionnels.deleteMany({ "metadonnee.commentaire.valeur": /seed-script/ })
-```
-
----
-
-## Visualising the Database (auth focus)
-
-### MongoDB Compass (recommended for evaluations)
-1. Open Compass and connect with your `MONGODB_URI`.
-2. Select the `la_clinique` database and explore the following collections:
-   - `professionnels`: check the `exercicesProfessionnels.dispositifsAuthentification` array. The embedded CPS card and certificate demonstrate the authentication workflow.
-   - `dispositifsAuthentification`: standalone store of cards/certificates (useful for cross-checking or building lookups).
-   - `autorisations` and `personnesPhysiques` for supporting context.
-3. Use the **Schema** tab to generate quick summaries. For example, in `dispositifsAuthentification`, you can see the fields `cartes.typeCarte.valeur`, `certificats.usage.valeur`, etc., all mapped to NOS codes.
-
-### CLI inspection (quick checks)
-```bash
-mongosh "$MONGODB_URI" --eval '
-use la_clinique;
-db.dispositifsAuthentification.find({ "cartes.numeroCarte.valeur": "99887766" }).pretty();
-'
-```
-This command outputs the authentication dataset in JSON—handy for screenshots or to share raw payloads with your professor.
-
-### Building a custom view
-Because serializers convert Mongo documents into DTO-like structures, you can rapidly expose them in a Next.js page or API route:
-```ts
-const collection = await getDispositifAuthentificationCollection();
-const docs = await collection.find({}).toArray();
-const dtos = docs.map(DispositifAuthentificationSerializer.fromDocument);
-```
-Render the `dtos` in a table to demonstrate the CPS cards, certificate metadata (usage, domaine, dates), and associated NOS nomenclatures.
-
----
-
-## Project Scripts
-- `npm run dev` – start Next.js.
-- `npm run lint` – lint the codebase.
-- `npm run seed` – (re)generate the MOS mock dataset described above.
-
----
-
-## Nomenclature Mapping Reminder
-`src/domain/nos.ts` centralises the MOS/NOS mapping used by the seeder. Extend this file with additional codes from [esante.gouv.fr](https://esante.gouv.fr/interoperabilite/mos-nos/nos) as your domain models grow. Then reuse `nosCode(domain, key)` everywhere you build MOS objects to keep code values and libellés consistent.
-
----
-
-This is the MONGODB_URI : mongodb+srv://angekonian2_db_user:8ypiOtPQM6ITEHH6@cluster0.gaunyrt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
-
-Happy hacking! Populate, inspect, and iteratively enrich the MOS structures to match your coursework requirements.
+**Version**: 0.1.0 (POC Académique)
+**Licence**: MIT
