@@ -128,6 +128,18 @@ npm run dev
 
 L'app est accessible sur http://localhost:3000
 
+### 6. Peupler la base de données
+
+1. Connectez-vous une fois avec chaque compte Keycloak (admin, secrétariat, médecin, infirmier, patient) afin de créer les utilisateurs dans MongoDB.
+2. Vérifiez que `MONGODB_URI` est défini dans `.env.local`.
+3. Lancez le script de seed :
+
+```bash
+pnpm seed
+```
+
+Le script vide les collections métier (patients, professionnels, rendez-vous, documents, analyses, messages) puis insère un jeu de données cohérent pour tester les dashboards.
+
 ## Architecture API
 
 ### Principes

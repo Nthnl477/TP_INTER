@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
 
 export default function LogoutPage() {
   const router = useRouter()
@@ -20,10 +21,17 @@ export default function LogoutPage() {
   }, [])
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="text-center max-w-md">
         <h1 className="text-2xl font-bold mb-4">Déconnexion...</h1>
-        <p className="text-gray-600">Vous êtes en cours de déconnexion</p>
+        <p className="text-gray-600 mb-6">Vous êtes en cours de déconnexion</p>
+        <Button
+          onClick={() => router.push("/login")}
+          variant="secondary"
+          className="w-full sm:w-auto"
+        >
+          Revenir à la page de connexion
+        </Button>
       </div>
     </div>
   )
