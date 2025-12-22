@@ -82,13 +82,10 @@ mongodb://root:password@localhost:27017/epitanie?authSource=admin
 
 **Avec Docker** :
 \`\`\`bash
-docker run -d \
-  --name keycloak \
-  -p 8080:8080 \
-  -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
-  -e KC_BOOTSTRAP_ADMIN_PASSWORD=password \
-  quay.io/keycloak/keycloak:24.0 \
-  start-dev
+docker run -d --name keycloak -p 8080:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=password \
+  quay.io/keycloak/keycloak:24.0 start-dev
 \`\`\`
 
 #### Configuration du Realm Keycloak

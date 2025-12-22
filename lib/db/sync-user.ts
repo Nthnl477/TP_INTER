@@ -17,27 +17,22 @@ export async function syncUserFromKeycloak(token: string) {
     const roles = extractRoles(decoded)
     const appRole = getAppRole(roles)
 
-    // Check if user exists
-    let user = await User.findOne({ keycloakId })
-
-    if (user) {
-      // Update existing user
-      user.email = decoded.email
-      user.nom = decoded.family_name
-      user.prenom = decoded.given_name
-      user.role = appRole
-      await user.save()
-    } else {
-      // Create new user
-      user = new User({
-        keycloakId,
-        email: decoded.email,
-        nom: decoded.family_name,
-        prenom: decoded.given_name,
-        role: appRole,
-      })
-      await user.save()
-    }
+    // Upsert user by keycloakId or email to avoid duplicate key errors
+    const user = await User.findOneAndUpdate(
+      {
+        $or: [{ keycloakId }, { email: decoded.email }],
+      },
+      {
+        $set: {
+          email: decoded.email,
+          nom: decoded.family_name,
+          prenom: decoded.given_name,
+          role: appRole,
+        },
+        $setOnInsert: { keycloakId },
+      },
+      { new: true, upsert: true },
+    )
 
     return user
   } catch (error) {

@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/keycloak/auth-context"
 import connectToDatabase from "@/lib/db/connection"
 import { RendezVous } from "@/lib/db/models/RendezVous"
 import { Patient } from "@/lib/db/models/Patient"
+import "@/lib/db/models/ProfessionnelDeSante"
 import { isAdmin, isSecretary, getMongoUserIdFromKeycloak, isProfessionalInCircleOfCare } from "@/lib/api/authorization"
 import { handleApiError, successResponse, BadRequestException } from "@/lib/api/error-handler"
 

@@ -13,7 +13,13 @@ export default function LogoutPage() {
       await fetch("/api/auth/logout", { method: "POST" })
 
       // Redirect to Keycloak logout
-      const keycloakLogoutUrl = `${process.env.NEXT_PUBLIC_KEYCLOAK_URL}/realms/${process.env.NEXT_PUBLIC_KEYCLOAK_REALM}/protocol/openid-connect/logout?redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_APP_URL!)}`
+      const baseUrl = process.env.NEXT_PUBLIC_KEYCLOAK_URL
+      const realm = process.env.NEXT_PUBLIC_KEYCLOAK_REALM
+      const clientId = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID
+      const redirectUri = process.env.NEXT_PUBLIC_APP_URL!
+
+      // Use post_logout_redirect_uri + client_id (Keycloak 22+)
+      const keycloakLogoutUrl = `${baseUrl}/realms/${realm}/protocol/openid-connect/logout?client_id=${encodeURIComponent(clientId!)}&post_logout_redirect_uri=${encodeURIComponent(redirectUri)}`
       window.location.href = keycloakLogoutUrl
     }
 
