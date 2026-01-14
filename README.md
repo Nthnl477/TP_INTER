@@ -12,24 +12,6 @@ Epitanie est une plateforme full-stack de coordination entre professionnels de s
 - **Authentification**: Keycloak (OIDC) avec RBAC
 - **Déploiement**: Vercel-ready
 
-## Architecture
-
-\`\`\`
-epitanie/
-├── app/
-│   ├── api/              # Route handlers API
-│   ├── dashboard/        # Pages protégées
-│   ├── layout.tsx        # Layout principal
-│   └── page.tsx          # Accueil
-├── lib/
-│   ├── db/
-│   │   ├── connection.ts # Connexion MongoDB
-│   │   └── models/       # Schemas Mongoose
-│   ├── types/            # Types TypeScript
-│   └── keycloak.ts       # Utilitaires Keycloak
-├── components/           # Composants React
-└── public/               # Assets statiques
-\`\`\`
 
 ## Modèles de données
 
@@ -50,38 +32,57 @@ epitanie/
 - **NOS (nomenclature)** : Les établissements portent un `codeNOS` optionnel (affiché côté admin et utilisé pour identifier les laboratoires dans les analyses). Les documents cliniques embarquent `codesNOSOuAutres` pour référencer des terminologies (ex. codes NOS, CIM-10). Les libellés de type (type d’établissement, statut d’analyse, type de document) sont aujourd’hui des énumérations locales et non des JDV/TRE officiels.
 - **Portée limitée** : Pas d’URI de JDV/TRE, pas de versioning NOS ni de navigation SMT ; les libellés de statuts (rendez-vous, analyses) et types de documents ne sont pas alignés sur des jeux de valeurs ANS. Ce POC se limite à exposer le code NOS des établissements et à permettre le stockage de codes terminologiques sur les documents.
 
-### Webservice FHIR (POC TD2)
+### Webservice FHIR (POC TD2/TD3)
 
-- Endpoint : `GET /api/fhir/analyses` retourne un Bundle FHIR (type `collection`) contenant pour chaque analyse :
-  - `ServiceRequest` (prescription) avec références vers `Patient`, `Practitioner` (prescripteur) et `Organization` (labo, `identifier` NOS si connu).
-  - `DiagnosticReport` (bilan) lié à la prescription et aux résultats.
-  - `Observation` (une par examen saisi, ex. TSH/T3/T4 libres) avec statut préliminaire ou final selon l’analyse.
-- Deduplication : chaque ressource est unique dans le Bundle (Patient, Practitioner, Organization réutilisés).
-- Accès : mêmes règles que `/api/analyses` (admin voit tout, sinon patient ou cercle de soins). Les utilisateurs non synchronisés reçoivent un Bundle vide.
-- Terminologies : LOINC appliqué aux rapports labo (`11502-2`) et à plusieurs examens (TSH `3016-3`, T3 libre `3051-0`, T4 libre `3024-7`, LDL `18262-6`, HDL `2085-9`, Chol total `2093-3`, HbA1c `4548-4`, glycémie `2345-7`, CRP `1988-5`, fibrinogène `3255-7`, Hb `718-7`, plaquettes `26515-7`, GB `6690-2`), sinon code système placeholder `https://example.org/*`. Les unités utilisent UCUM si renseignées. `codeNOS` est exporté dans l’Organization (identifier + type) avec placeholder si non renseigné.
-- Enrichissements : Organization exporte `identifier` NOS ; Observations portent UCUM sur les unités et une Interpretation codée (v3-ObservationInterpretation) quand un texte d’interprétation est présent.
-- Test rapide (auth requise, sinon OperationOutcome Unauthorized) :
-  ```bash
-  curl -H "Authorization: Bearer <token>" http://localhost:3000/api/fhir/analyses | jq .
-  ```
+- `GET /api/fhir/analyses` : Bundle avec ServiceRequest, DiagnosticReport, Observation, Patient, Practitioner, Organization (NOS en identifier/type). Terminologies LOINC (rapport labo 11502-2, TSH 3016-3, T3L 3051-0, T4L 3024-7, LDL 18262-6, HDL 2085-9, chol. total 2093-3, HbA1c 4548-4, glycémie 2345-7, CRP 1988-5, fibrinogène 3255-7, Hb 718-7, plaquettes 26515-7, GB 6690-2), UCUM sur les unités. Accès = mêmes règles que `/api/analyses`.
+- Ressources par endpoint :
+  - Patients : `GET /api/fhir/patients` (+ `POST/PUT` Patient raw, identifiants local/INS)
+  - ServiceRequest : `GET/POST /api/fhir/servicerequests` (POST crée une analyse interne)
+  - Observation : `GET/POST /api/fhir/observations` (stockage raw)
+  - DiagnosticReport : `GET/POST /api/fhir/diagnosticreports` (stockage raw)
+  - Organization : `GET/POST/PUT /api/fhir/organizations` (NOS en identifier/type)
+  - DocumentReference : `GET/POST/PUT /api/fhir/documentreferences`
+  - ImagingStudy/DocumentReference (imagerie) : `GET/POST/PUT /api/fhir/imaging` (flux écho POC enrichi)
+  - Subscriptions : `GET/POST /api/fhir/subscriptions` (persisté, rest-hook best-effort)
 
-- Endpoint : `GET /api/fhir/organizations` retourne un Bundle FHIR des établissements (Organization) avec identifier NOS (si renseigné).
-  ```bash
-  curl -H "Authorization: Bearer <token>" http://localhost:3000/api/fhir/organizations | jq .
-  ```
+### Scénarios TD1/TD2/TD3 (tests manuels)
 
-- Endpoint : `GET /api/fhir/imaging` expose un flux POC d’échographie (ServiceRequest US thyroid, ImagingStudy, DiagnosticReport) lié au premier patient/pro dispo et à un hôpital (Organization avec NOS si présent).
-  ```bash
-  curl -H "Authorization: Bearer <token>" http://localhost:3000/api/fhir/imaging | jq .
-  ```
+Prérequis : serveur lancé, Keycloak configuré, `TOKEN` Bearer valide, IDs Mongo pour `PATIENT_ID`, `LAB_ID` (Organization labo). Base : `BASE=http://localhost:3000`.
 
-- Endpoints FHIR par ressource (POC) :
-  - `GET /api/fhir/patients` (identifiers : local + INS si présent)
-  - `GET /api/fhir/servicerequests`
-    - `POST /api/fhir/servicerequests` (création d’une analyse à partir d’un ServiceRequest FHIR : subject Patient/{id}, performer Organization/{id}, examens[] optionnel)
-  - `GET /api/fhir/observations` (+ `POST` pour stocker un Observation raw)
-  - `GET /api/fhir/diagnosticreports` (+ `POST` pour stocker un DiagnosticReport raw)
-  - `GET /api/fhir/subscriptions` / `POST /api/fhir/subscriptions` pour créer/lister des subscriptions persistées (rest-hook best-effort)
+**TD1 (MOS/NOS)**
+- NOS : `curl -H "Authorization: Bearer $TOKEN" $BASE/api/fhir/organizations | jq .`
+- Analyses exposées : `curl -H "Authorization: Bearer $TOKEN" $BASE/api/fhir/analyses | jq .`
+
+**TD2 (FHIR POC)**
+- Patients : `curl -H "Authorization: Bearer $TOKEN" $BASE/api/fhir/patients | jq .`
+- Prescription d’analyse (ServiceRequest) :
+  curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/fhir+json" \
+    -d '{"resourceType":"ServiceRequest","status":"active","intent":"order","subject":{"reference":"Patient/'"$PATIENT_ID"'"},"performer":[{"reference":"Organization/'"$LAB_ID"'"}],"authoredOn":"'"$(date -Iseconds)"'","examens":[{"codeTest":"BIO-TSH","libelle":"TSH"}]}' \
+    $BASE/api/fhir/servicerequests | jq .
+- Subscription rest-hook :
+  curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+    -d '{"criteria":"Appointment","channel":{"type":"rest-hook","endpoint":"https://example.org/webhook","payload":"application/fhir+json"}}' \
+    $BASE/api/fhir/subscriptions | jq .
+
+**TD3 (échange CR + prescription + résultats)**
+1) CR médecin (DocumentReference) :
+  curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/fhir+json" \
+    -d '{"resourceType":"DocumentReference","status":"current","type":{"coding":[{"system":"http://loinc.org","code":"11506-3","display":"Consult note"}]},"subject":{"reference":"Patient/'"$PATIENT_ID"'"},"content":[{"attachment":{"contentType":"text/plain","data":"'"$(echo -n "CR endocrinologue (suspicion Basedow)" | base64)"'"}}]}' \
+    $BASE/api/fhir/documentreferences | jq .
+2) Prescription (ServiceRequest TSH/T3/T4) : commande TD2 ci-dessus (examens BIO-TSH/BIO-T3L/BIO-T4L si besoin).
+3) Résultats labo (Observations + DiagnosticReport) :
+  curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/fhir+json" \
+    -d '{"resourceType":"Observation","status":"final","code":{"coding":[{"system":"http://loinc.org","code":"3016-3","display":"TSH"}]},"subject":{"reference":"Patient/'"$PATIENT_ID"'"},"valueQuantity":{"value":0.9,"unit":"µUI/mL","system":"http://unitsofmeasure.org","code":"uIU/mL"}}' \
+    $BASE/api/fhir/observations | jq .
+
+  curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/fhir+json" \
+    -d '{"resourceType":"DiagnosticReport","status":"final","code":{"coding":[{"system":"http://loinc.org","code":"11502-2","display":"Laboratory report"}]},"subject":{"reference":"Patient/'"$PATIENT_ID"'"},"conclusion":"Résultats TSH/T3/T4 reçus (exemple TD3)."}' \
+    $BASE/api/fhir/diagnosticreports | jq .
+4) Imagerie (écho POC enrichie) : `curl -H "Authorization: Bearer $TOKEN" $BASE/api/fhir/imaging | jq .`
+
+**Notifications**
+- Les créations de message, document, rendez-vous, ServiceRequest/analyses déclenchent un rest-hook best-effort vers les endpoints configurés dans les subscriptions. Prévoir un mock webhook (ex. webhook.site) pour vérifier la réception.
+
 
 ## Installation et configuration
 
