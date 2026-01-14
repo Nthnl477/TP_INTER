@@ -114,6 +114,7 @@ async function seed() {
     {
       nom: "Laboratoire Biofast Epitanie",
       typeEtablissement: "LABORATOIRE",
+      codeNOS: "750100456",
       adresseSimplifiee: "12 Rue de la Santé, 75013 Paris",
     },
   ])) as IEtablissement[]

@@ -5,6 +5,7 @@ import { DocumentClinique } from "@/lib/db/models/DocumentClinique"
 import { Patient } from "@/lib/db/models/Patient"
 import { isAdmin, getMongoUserIdFromKeycloak, canAccessPatient } from "@/lib/api/authorization"
 import { handleApiError, successResponse, BadRequestException } from "@/lib/api/error-handler"
+import { notifySubscribers } from "@/lib/fhir/notify"
 
 // GET /api/documents - List clinical documents
 export async function GET(request: NextRequest) {
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
 
     const populatedDocument = await document.populate("patient").populate("auteur")
 
+    await notifySubscribers("DocumentReference", populatedDocument)
     return successResponse(populatedDocument, 201)
   } catch (error) {
     return handleApiError(error)

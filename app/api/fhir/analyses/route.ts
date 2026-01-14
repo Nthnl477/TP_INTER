@@ -17,25 +17,28 @@ export async function GET(_request: NextRequest) {
     // Fetch analyses with same access rules as /api/analyses
     let analyses: any[] = []
     if (isAdmin(auth)) {
-      analyses = await AnalyseBiologique.find().populate("patient").populate("prescripteur").populate("laboratoire")
+      analyses = await AnalyseBiologique.find()
+        .populate("patient")
+        .populate({ path: "prescripteur", populate: "utilisateur" })
+        .populate("laboratoire")
     } else if (mongoUserId) {
       const patient = await Patient.findOne({ utilisateur: mongoUserId })
       if (patient) {
         analyses = await AnalyseBiologique.find({ patient: patient._id })
           .populate("patient")
-          .populate("prescripteur")
+          .populate({ path: "prescripteur", populate: "utilisateur" })
           .populate("laboratoire")
       } else {
         const patientsInCircle = await Patient.find({ professionnelsDuCercleDeSoin: mongoUserId }).select("_id")
         const patientIds = patientsInCircle.map((p) => p._id)
         analyses = await AnalyseBiologique.find({ patient: { $in: patientIds } })
           .populate("patient")
-          .populate("prescripteur")
+          .populate({ path: "prescripteur", populate: "utilisateur" })
           .populate("laboratoire")
       }
     }
 
-    const entries: any[] = []
+    const resourcesMap = new Map<string, any>()
 
     for (const analysis of analyses) {
       const srId = `sr-${analysis._id}`
@@ -45,29 +48,39 @@ export async function GET(_request: NextRequest) {
         reference: `Patient/${analysis.patient?._id ?? "unknown"}`,
         display: `${analysis.patient?.prenom ?? ""} ${analysis.patient?.nom ?? ""}`.trim(),
       }
+      const practitionerDisplay = `${analysis.prescripteur?.utilisateur?.prenom ?? ""} ${
+        analysis.prescripteur?.utilisateur?.nom ?? ""
+      }`.trim()
       const practitionerRef = analysis.prescripteur
         ? {
             reference: `Practitioner/${analysis.prescripteur._id}`,
-            display: `${analysis.prescripteur.utilisateur?.prenom ?? ""} ${
-              analysis.prescripteur.utilisateur?.nom ?? ""
-            }`.trim(),
+            display: practitionerDisplay || undefined,
           }
         : undefined
       const orgRef = analysis.laboratoire
         ? { reference: `Organization/${analysis.laboratoire._id}`, display: analysis.laboratoire.nom }
         : undefined
       const orgIdentifier =
-        analysis.laboratoire?.codeNOS != null
+        analysis.laboratoire?.codeNOS
           ? [
               {
                 system: "https://ans.gouv.fr/nos",
                 value: analysis.laboratoire.codeNOS,
               },
             ]
-          : undefined
+          : [
+              {
+                system: "https://example.org/fhir/CodeSystem/nos-placeholder",
+                value: "NOS-UNKNOWN",
+              },
+            ]
 
       const srStatus =
-        analysis.statut === "VALIDE" ? "completed" : analysis.statut === "EN_COURS" ? "active" : "active"
+        analysis.statut === "VALIDE"
+          ? "completed"
+          : analysis.statut === "EN_COURS"
+            ? "active"
+            : "active"
 
       const serviceRequest = {
         resourceType: "ServiceRequest",
@@ -77,11 +90,12 @@ export async function GET(_request: NextRequest) {
         code: {
           coding: [
             {
-              system: "https://example.org/fhir/CodeSystem/analysis-type",
-              code: "LAB-BIO",
-              display: "Prescription d'analyses biologiques",
+              system: "http://loinc.org",
+              code: "24320-4",
+              display: "Problèmes/observations concernant le laboratoire",
             },
           ],
+          text: "Prescription d'analyses biologiques",
         },
         subject: patientRef,
         requester: practitionerRef,
@@ -90,9 +104,32 @@ export async function GET(_request: NextRequest) {
       }
 
       const obsStatus = analysis.statut === "VALIDE" ? "final" : "preliminary"
+      const drStatus = analysis.statut === "VALIDE" ? "final" : "partial"
+      const loincMap: Record<string, { code: string; display: string }> = {
+        // Thyroid panel
+        "BIO-TSH": { code: "3016-3", display: "Thyrotropin [Units/volume] in Serum or Plasma" },
+        "BIO-T3L": { code: "3051-0", display: "Triiodothyronine (T3) Free [Mass/volume] in Serum or Plasma" },
+        "BIO-T4L": { code: "3024-7", display: "Thyroxine (T4) Free [Mass/volume] in Serum or Plasma" },
+        // Lipids
+        "BIO-LDL": { code: "18262-6", display: "Cholesterol in LDL [Mass/volume] in Serum or Plasma" },
+        "BIO-HDL": { code: "2085-9", display: "Cholesterol in HDL [Mass/volume] in Serum or Plasma" },
+        "BIO-CHOLTOTAL": { code: "2093-3", display: "Cholesterol total [Mass/volume] in Serum or Plasma" },
+        // Glycemia
+        "BIO-HBA1C": { code: "4548-4", display: "Hemoglobin A1c/Hemoglobin.total in Blood" },
+        "BIO-GLYC": { code: "2345-7", display: "Glucose [Mass/volume] in Serum or Plasma" },
+        // Inflammation
+        "BIO-CRP": { code: "1988-5", display: "C reactive protein [Mass/volume] in Serum or Plasma" },
+        "BIO-FIBRIN": { code: "3255-7", display: "Fibrinogen [Mass/volume] in Platelet poor plasma" },
+        // Hématologie
+        "BIO-HB": { code: "718-7", display: "Hemoglobin [Mass/volume] in Blood" },
+        "BIO-PLAQ": { code: "26515-7", display: "Platelets [#/volume] in Blood" },
+        "BIO-GB": { code: "6690-2", display: "Leukocytes [#/volume] in Blood" },
+      }
+
       const observations = (analysis.examens || []).map((ex: any, idx: number) => {
         const obsId = `obs-${analysis._id}-${idx}`
         const quantityValue = ex.valeur !== undefined ? Number(ex.valeur) : undefined
+        const loinc = loincMap[ex.codeTest]
 
         return {
           resourceType: "Observation",
@@ -112,12 +149,12 @@ export async function GET(_request: NextRequest) {
           code: {
             coding: [
               {
-                system: "https://example.org/fhir/CodeSystem/lab-tests",
-                code: ex.codeTest || `EX-${idx + 1}`,
-                display: ex.libelle || "Examen",
+                system: loinc ? "http://loinc.org" : "https://example.org/fhir/CodeSystem/lab-tests",
+                code: loinc?.code || ex.codeTest || `EX-${idx + 1}`,
+                display: loinc?.display || ex.libelle || "Examen de laboratoire (placeholder)",
               },
             ],
-            text: ex.libelle,
+            text: loinc?.display || ex.libelle || "Examen de laboratoire (placeholder)",
           },
           subject: patientRef,
           performer: orgRef ? [orgRef] : undefined,
@@ -127,6 +164,8 @@ export async function GET(_request: NextRequest) {
               ? {
                   value: quantityValue,
                   unit: ex.unite || undefined,
+                  system: ex.unite ? "http://unitsofmeasure.org" : undefined,
+                  code: ex.unite || undefined,
                 }
               : undefined,
           valueString: quantityValue || quantityValue === 0 ? undefined : ex.valeur,
@@ -151,15 +190,16 @@ export async function GET(_request: NextRequest) {
       const diagnosticReport = {
         resourceType: "DiagnosticReport",
         id: drId,
-        status: obsStatus,
+        status: drStatus,
         code: {
           coding: [
             {
-              system: "https://example.org/fhir/CodeSystem/report-type",
-              code: "LAB-REPORT",
-              display: "Compte-rendu d'analyses biologiques",
+              system: "http://loinc.org",
+              code: "11502-2",
+              display: "Laboratory report",
             },
           ],
+          text: "Compte-rendu d'analyses biologiques",
         },
         subject: patientRef,
         performer: orgRef ? [orgRef] : undefined,
@@ -168,43 +208,50 @@ export async function GET(_request: NextRequest) {
         basedOn: [{ reference: `ServiceRequest/${srId}` }],
       }
 
-      entries.push({ resource: serviceRequest })
-      entries.push({ resource: diagnosticReport })
-      observations.forEach((obs) => entries.push({ resource: obs }))
+      resourcesMap.set(serviceRequest.id, serviceRequest)
+      resourcesMap.set(diagnosticReport.id, diagnosticReport)
+      observations.forEach((obs) => resourcesMap.set(obs.id, obs))
       if (orgRef) {
-        entries.push({
-          resource: {
-            resourceType: "Organization",
-            id: analysis.laboratoire._id.toString(),
-            identifier: orgIdentifier,
-            name: analysis.laboratoire.nom,
-          },
+        resourcesMap.set(analysis.laboratoire._id.toString(), {
+          resourceType: "Organization",
+          id: analysis.laboratoire._id.toString(),
+          identifier: orgIdentifier,
+          name: analysis.laboratoire.nom,
+          type: [
+            {
+              coding: [
+                {
+                  system: analysis.laboratoire.codeNOS ? "https://ans.gouv.fr/nos" : "https://example.org/fhir/CodeSystem/nos-placeholder",
+                  code: analysis.laboratoire.codeNOS || "NOS-UNKNOWN",
+                  display: analysis.laboratoire.codeNOS ? "Code NOS" : "Code NOS non renseigné",
+                },
+              ],
+            },
+          ],
         })
       }
       if (analysis.patient) {
-        entries.push({
-          resource: {
-            resourceType: "Patient",
-            id: analysis.patient._id.toString(),
-            name: [{ family: analysis.patient.nom, given: [analysis.patient.prenom] }],
-          },
+        resourcesMap.set(analysis.patient._id.toString(), {
+          resourceType: "Patient",
+          id: analysis.patient._id.toString(),
+          name: [{ family: analysis.patient.nom, given: [analysis.patient.prenom] }],
         })
       }
       if (analysis.prescripteur) {
-        entries.push({
-          resource: {
-            resourceType: "Practitioner",
-            id: analysis.prescripteur._id.toString(),
-            name: [
-              {
-                family: analysis.prescripteur.utilisateur?.nom,
-                given: [analysis.prescripteur.utilisateur?.prenom].filter(Boolean),
-              },
-            ],
-          },
+        resourcesMap.set(analysis.prescripteur._id.toString(), {
+          resourceType: "Practitioner",
+          id: analysis.prescripteur._id.toString(),
+          name: [
+            {
+              family: analysis.prescripteur.utilisateur?.nom,
+              given: [analysis.prescripteur.utilisateur?.prenom].filter(Boolean),
+            },
+          ],
         })
       }
     }
+
+    const entries = Array.from(resourcesMap.values()).map((resource) => ({ resource }))
 
     const bundle = {
       resourceType: "Bundle",
@@ -216,9 +263,11 @@ export async function GET(_request: NextRequest) {
     return NextResponse.json(bundle, { status: 200 })
   } catch (error: any) {
     console.error("FHIR analyses error", error)
+    const message = error?.message || "Unknown error"
+    const status = message.toLowerCase().includes("unauthorized") ? 401 : 500
     return NextResponse.json(
-      { resourceType: "OperationOutcome", issue: [{ severity: "error", diagnostics: error?.message || "Unknown error" }] },
-      { status: 500 },
+      { resourceType: "OperationOutcome", issue: [{ severity: "error", diagnostics: message }] },
+      { status },
     )
   }
 }

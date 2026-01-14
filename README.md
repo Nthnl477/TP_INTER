@@ -56,12 +56,32 @@ epitanie/
   - `ServiceRequest` (prescription) avec références vers `Patient`, `Practitioner` (prescripteur) et `Organization` (labo, `identifier` NOS si connu).
   - `DiagnosticReport` (bilan) lié à la prescription et aux résultats.
   - `Observation` (une par examen saisi, ex. TSH/T3/T4 libres) avec statut préliminaire ou final selon l’analyse.
+- Deduplication : chaque ressource est unique dans le Bundle (Patient, Practitioner, Organization réutilisés).
 - Accès : mêmes règles que `/api/analyses` (admin voit tout, sinon patient ou cercle de soins). Les utilisateurs non synchronisés reçoivent un Bundle vide.
-- Terminologies : code système placeholder `https://example.org/*` en attendant LOINC/SNOMED/UCUM ; `codeNOS` porté par l’Organization si présent.
-- Test rapide :
+- Terminologies : LOINC appliqué aux rapports labo (`11502-2`) et à plusieurs examens (TSH `3016-3`, T3 libre `3051-0`, T4 libre `3024-7`, LDL `18262-6`, HDL `2085-9`, Chol total `2093-3`, HbA1c `4548-4`, glycémie `2345-7`, CRP `1988-5`, fibrinogène `3255-7`, Hb `718-7`, plaquettes `26515-7`, GB `6690-2`), sinon code système placeholder `https://example.org/*`. Les unités utilisent UCUM si renseignées. `codeNOS` est exporté dans l’Organization (identifier + type) avec placeholder si non renseigné.
+- Enrichissements : Organization exporte `identifier` NOS ; Observations portent UCUM sur les unités et une Interpretation codée (v3-ObservationInterpretation) quand un texte d’interprétation est présent.
+- Test rapide (auth requise, sinon OperationOutcome Unauthorized) :
   ```bash
   curl -H "Authorization: Bearer <token>" http://localhost:3000/api/fhir/analyses | jq .
   ```
+
+- Endpoint : `GET /api/fhir/organizations` retourne un Bundle FHIR des établissements (Organization) avec identifier NOS (si renseigné).
+  ```bash
+  curl -H "Authorization: Bearer <token>" http://localhost:3000/api/fhir/organizations | jq .
+  ```
+
+- Endpoint : `GET /api/fhir/imaging` expose un flux POC d’échographie (ServiceRequest US thyroid, ImagingStudy, DiagnosticReport) lié au premier patient/pro dispo et à un hôpital (Organization avec NOS si présent).
+  ```bash
+  curl -H "Authorization: Bearer <token>" http://localhost:3000/api/fhir/imaging | jq .
+  ```
+
+- Endpoints FHIR par ressource (POC) :
+  - `GET /api/fhir/patients` (identifiers : local + INS si présent)
+  - `GET /api/fhir/servicerequests`
+    - `POST /api/fhir/servicerequests` (création d’une analyse à partir d’un ServiceRequest FHIR : subject Patient/{id}, performer Organization/{id}, examens[] optionnel)
+  - `GET /api/fhir/observations` (+ `POST` pour stocker un Observation raw)
+  - `GET /api/fhir/diagnosticreports` (+ `POST` pour stocker un DiagnosticReport raw)
+  - `GET /api/fhir/subscriptions` / `POST /api/fhir/subscriptions` pour créer/lister des subscriptions persistées (rest-hook best-effort)
 
 ## Installation et configuration
 

@@ -8,12 +8,20 @@ import { formatDate } from "@/lib/utils"
 
 export function PatientAppointmentsList() {
   const [appointments, setAppointments] = useState<any[]>([])
+  const [patientId, setPatientId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchAppointments = async () => {
       try {
-        const res = await fetch("/api/rendezvous")
+        // Get patient to filter appointments reliably
+        const patientRes = await fetch("/api/patients")
+        const patientData = await patientRes.json()
+        const p = patientData.data && patientData.data.length > 0 ? patientData.data[0] : null
+        const pid = p?._id || p?.id
+        setPatientId(pid || null)
+
+        const res = await fetch(pid ? `/api/rendezvous?patientId=${pid}` : "/api/rendezvous")
         const data = await res.json()
         setAppointments((data.data || []).slice(0, 5))
       } catch (error) {

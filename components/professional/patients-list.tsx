@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
+import Link from "next/link"
 
 export function ProfessionalPatientsList() {
   const [patients, setPatients] = useState<any[]>([])
@@ -57,8 +58,8 @@ export function ProfessionalPatientsList() {
               <TableCell>{patient.sexe}</TableCell>
               <TableCell>{new Date(patient.dateNaissance).toLocaleDateString("fr-FR")}</TableCell>
               <TableCell>
-                <Button variant="outline" size="sm">
-                  Dossier patient
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/dashboard/secretariat/patients/${patient._id}`}>Dossier patient</Link>
                 </Button>
               </TableCell>
             </TableRow>

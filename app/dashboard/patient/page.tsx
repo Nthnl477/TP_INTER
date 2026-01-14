@@ -13,6 +13,7 @@ export default function PatientDashboard() {
   const [user, setUser] = useState<any>(null)
   const [patient, setPatient] = useState<any>(null)
   const [stats, setStats] = useState<any>(null)
+  const [messages, setMessages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -30,11 +31,12 @@ export default function PatientDashboard() {
         // Get patient data
         const patientsRes = await fetch("/api/patients")
         const patientsData = await patientsRes.json()
-        if (patientsData.data && patientsData.data.length > 0) {
-          setPatient(patientsData.data[0])
+        const patientRecord = patientsData.data && patientsData.data.length > 0 ? patientsData.data[0] : null
+        if (patientRecord) {
+          setPatient(patientRecord)
         }
 
-        // Get appointments
+        // Get appointments (filtered server-side for patient)
         const appointmentsRes = await fetch("/api/rendezvous")
         const appointmentsData = await appointmentsRes.json()
 
@@ -45,6 +47,13 @@ export default function PatientDashboard() {
         // Get analyses
         const analysesRes = await fetch("/api/analyses")
         const analysesData = await analysesRes.json()
+
+        // Get messages/notifications for the patient
+        if (patientRecord?._id) {
+          const messagesRes = await fetch(`/api/messages?patientId=${patientRecord._id}`)
+          const messagesData = await messagesRes.json()
+          setMessages(messagesData.data?.slice(0, 5) || [])
+        }
 
         setStats({
           totalAppointments: appointmentsData.data?.length || 0,
@@ -123,23 +132,28 @@ export default function PatientDashboard() {
           </Card>
         </div>
 
-        {/* Quick Links */}
+        {/* Derniers messages / notifications */}
         <Card>
           <CardHeader>
-            <CardTitle>Accès rapides</CardTitle>
+            <CardTitle>Derniers messages</CardTitle>
+            <CardDescription>Les communications récentes liées à votre dossier</CardDescription>
           </CardHeader>
-          <CardContent className="flex gap-3 flex-wrap">
-            <Button asChild>
-              <a href="/dashboard/patient/record">Voir mon dossier</a>
-            </Button>
-            <Button asChild variant="outline">
-              <a href="/dashboard/patient/appointments">Mes rendez-vous</a>
-            </Button>
-            <Button asChild variant="outline">
-              <a href="/dashboard/patient/analyses">Résultats d'analyses</a>
-            </Button>
-            <Button asChild variant="outline">
-              <a href="/dashboard/patient/messages">Messages</a>
+          <CardContent className="space-y-3">
+            {messages.length === 0 ? (
+              <p className="text-sm text-gray-500">Aucun message pour le moment.</p>
+            ) : (
+              messages.map((msg) => (
+                <div key={msg._id} className="border rounded-md p-3 bg-gray-50">
+                  <div className="text-sm text-gray-700">{msg.contenu}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {msg.auteur?.prenom} {msg.auteur?.nom} —{" "}
+                    {msg.dateEnvoi ? new Date(msg.dateEnvoi).toLocaleString("fr-FR") : ""}
+                  </div>
+                </div>
+              ))
+            )}
+            <Button asChild variant="outline" className="w-fit">
+              <a href="/dashboard/patient/messages">Voir tous les messages</a>
             </Button>
           </CardContent>
         </Card>

@@ -28,7 +28,12 @@ export async function GET(request: NextRequest) {
         .populate("professionnelsDuCercleDeSoin", "email nom prenom")
     } else {
       // Patients can only see their own data (through specific endpoint)
-      const mongoUserId = await getMongoUserIdFromKeycloak(auth.userId)
+      let mongoUserId = await getMongoUserIdFromKeycloak(auth.userId)
+      // Fallback: resolve user by email if not synchronized
+      if (!mongoUserId && auth.email) {
+        const userDoc = await Patient.db.model("User").findOne({ email: auth.email }).select("_id")
+        mongoUserId = userDoc?._id?.toString() || null
+      }
       const patientData = await Patient.findOne({ utilisateur: mongoUserId })
         .populate("utilisateur", "email nom prenom")
         .populate("professionnelsDuCercleDeSoin", "email nom prenom")

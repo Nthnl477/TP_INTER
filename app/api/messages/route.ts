@@ -5,6 +5,7 @@ import { MessageInterne } from "@/lib/db/models/MessageInterne"
 import { getMongoUserIdFromKeycloak, isAdmin, isSecretary, isProfessionalInCircleOfCare } from "@/lib/api/authorization"
 import { Patient } from "@/lib/db/models/Patient"
 import { handleApiError, successResponse, BadRequestException } from "@/lib/api/error-handler"
+import { notifySubscribers } from "@/lib/fhir/notify"
 
 // GET /api/messages - Get messages for a patient or user
 export async function GET(request: NextRequest) {
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
       .populate("auteur", "email nom prenom")
       .populate("destinataires", "email nom prenom")
 
+    await notifySubscribers("MessageInterne", populatedMessage)
     return successResponse(populatedMessage, 201)
   } catch (error) {
     return handleApiError(error)
