@@ -4,8 +4,7 @@ import { useEffect, useState } from "react"
 import { redirect } from "next/navigation"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Users, Building2, Stethoscope, Settings } from "lucide-react"
+import { Users, Building2, Stethoscope, Settings, Calendar, FileText, FlaskConical } from "lucide-react"
 import { AdminStatsCard } from "@/components/admin/stats-card"
 
 export default function AdminDashboard() {
@@ -58,6 +57,10 @@ export default function AdminDashboard() {
     { label: "Utilisateurs", href: "/dashboard/admin/users", icon: <Users className="w-4 h-4" /> },
     { label: "Établissements", href: "/dashboard/admin/facilities", icon: <Building2 className="w-4 h-4" /> },
     { label: "Professionnels", href: "/dashboard/admin/professionals", icon: <Stethoscope className="w-4 h-4" /> },
+    { label: "Patients", href: "/dashboard/admin/patients", icon: <Users className="w-4 h-4" /> },
+    { label: "Rendez-vous", href: "/dashboard/admin/appointments", icon: <Calendar className="w-4 h-4" /> },
+    { label: "Documents", href: "/dashboard/admin/documents", icon: <FileText className="w-4 h-4" /> },
+    { label: "Analyses", href: "/dashboard/admin/analyses", icon: <FlaskConical className="w-4 h-4" /> },
   ]
 
   return (
@@ -77,23 +80,6 @@ export default function AdminDashboard() {
           <AdminStatsCard title="À venir" value={stats?.pendingAppointments} description="Rendez-vous planifiés" />
         </div>
 
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Actions rapides</CardTitle>
-          </CardHeader>
-          <CardContent className="flex gap-3 flex-wrap">
-            <Button asChild>
-              <a href="/dashboard/admin/users">Gérer les utilisateurs</a>
-            </Button>
-            <Button asChild variant="outline">
-              <a href="/dashboard/admin/facilities">Gérer les établissements</a>
-            </Button>
-            <Button asChild variant="outline">
-              <a href="/dashboard/admin/professionals">Gérer les professionnels</a>
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   )

@@ -13,18 +13,25 @@ export async function GET(request: NextRequest) {
     await connectToDatabase()
 
     const mongoUserId = await getMongoUserIdFromKeycloak(auth.userId)
+    if (!mongoUserId) {
+      throw new Error("Forbidden: user not synchronized")
+    }
     let documents: any
 
     if (isAdmin(auth)) {
       documents = await DocumentClinique.find().populate("patient").populate("auteur")
     } else {
-      // Get patient's documents accessible to user
+      // Patient: only own documents
       const patient = await Patient.findOne({ utilisateur: mongoUserId })
       if (patient) {
         documents = await DocumentClinique.find({ patient: patient._id }).populate("patient").populate("auteur")
       } else {
-        // Professional or secretary - get documents for their patients
-        documents = await DocumentClinique.find().populate("patient").populate("auteur")
+        // Professional or secretariat: only documents for patients in their circle of care
+        const patientsInCircle = await Patient.find({ professionnelsDuCercleDeSoin: mongoUserId }).select("_id")
+        const patientIds = patientsInCircle.map((p) => p._id)
+        documents = await DocumentClinique.find({ patient: { $in: patientIds } })
+          .populate("patient")
+          .populate("auteur")
       }
     }
 

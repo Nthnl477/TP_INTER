@@ -1,6 +1,7 @@
 import type { UserAuthContext } from "@/lib/types/keycloak"
 import { getUserByKeycloakId } from "@/lib/db/sync-user"
 import { Patient } from "@/lib/db/models/Patient"
+import { ProfessionnelDeSante } from "@/lib/db/models/ProfessionnelDeSante"
 
 /**
  * Check if user has the required role
@@ -55,10 +56,17 @@ export async function getMongoUserIdFromKeycloak(keycloakId: string): Promise<st
  */
 export async function isProfessionalInCircleOfCare(patientId: string, professionalUserId: string): Promise<boolean> {
   try {
+    // Accept either a User ID or a ProfessionnelDeSante ID
+    let resolvedUserId = professionalUserId
+    const professionalDoc = await ProfessionnelDeSante.findById(professionalUserId)
+    if (professionalDoc) {
+      resolvedUserId = professionalDoc.utilisateur.toString()
+    }
+
     const patient = await Patient.findById(patientId)
     if (!patient) return false
 
-    return patient.professionnelsDuCercleDeSoin.some((id) => id.toString() === professionalUserId)
+    return patient.professionnelsDuCercleDeSoin.some((id) => id.toString() === resolvedUserId)
   } catch (error) {
     console.error("Error checking circle of care:", error)
     return false

@@ -45,3 +45,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return handleApiError(error)
   }
 }
+
+// DELETE /api/rendezvous/[id] - Remove appointment
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const auth = await requireAuth()
+    const { id } = await params
+
+    // Restrict deletion to admin only to avoid accidental removals
+    if (!isAdmin(auth)) {
+      throw new Error("Forbidden: Only admin can delete appointments")
+    }
+
+    await connectToDatabase()
+
+    const deleted = await RendezVous.findByIdAndDelete(id)
+    if (!deleted) {
+      throw new NotFoundException("Appointment not found")
+    }
+
+    return successResponse({ deleted: true })
+  } catch (error) {
+    return handleApiError(error)
+  }
+}

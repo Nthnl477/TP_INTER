@@ -44,6 +44,25 @@ epitanie/
 7. **AnalyseBiologique** - Résultats d'analyses
 8. **MessageInterne** - Communication interne
 
+### Alignement MOS/NOS (sous-ensemble ANS)
+
+- **MOS (modèle)** : Nous modélisons un noyau commun des objets de santé : patient + cercle de soins, professionnels (médecin/infirmier) liés à un établissement, établissements (hôpital, cabinet, laboratoire), rendez-vous, documents cliniques et analyses biologiques.
+- **NOS (nomenclature)** : Les établissements portent un `codeNOS` optionnel (affiché côté admin et utilisé pour identifier les laboratoires dans les analyses). Les documents cliniques embarquent `codesNOSOuAutres` pour référencer des terminologies (ex. codes NOS, CIM-10). Les libellés de type (type d’établissement, statut d’analyse, type de document) sont aujourd’hui des énumérations locales et non des JDV/TRE officiels.
+- **Portée limitée** : Pas d’URI de JDV/TRE, pas de versioning NOS ni de navigation SMT ; les libellés de statuts (rendez-vous, analyses) et types de documents ne sont pas alignés sur des jeux de valeurs ANS. Ce POC se limite à exposer le code NOS des établissements et à permettre le stockage de codes terminologiques sur les documents.
+
+### Webservice FHIR (POC TD2)
+
+- Endpoint : `GET /api/fhir/analyses` retourne un Bundle FHIR (type `collection`) contenant pour chaque analyse :
+  - `ServiceRequest` (prescription) avec références vers `Patient`, `Practitioner` (prescripteur) et `Organization` (labo, `identifier` NOS si connu).
+  - `DiagnosticReport` (bilan) lié à la prescription et aux résultats.
+  - `Observation` (une par examen saisi, ex. TSH/T3/T4 libres) avec statut préliminaire ou final selon l’analyse.
+- Accès : mêmes règles que `/api/analyses` (admin voit tout, sinon patient ou cercle de soins). Les utilisateurs non synchronisés reçoivent un Bundle vide.
+- Terminologies : code système placeholder `https://example.org/*` en attendant LOINC/SNOMED/UCUM ; `codeNOS` porté par l’Organization si présent.
+- Test rapide :
+  ```bash
+  curl -H "Authorization: Bearer <token>" http://localhost:3000/api/fhir/analyses | jq .
+  ```
+
 ## Installation et configuration
 
 ### Prérequis
