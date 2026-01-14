@@ -12,6 +12,11 @@ Epitanie est une plateforme full-stack de coordination entre professionnels de s
 - **Authentification**: Keycloak (OIDC) avec RBAC
 - **Déploiement**: Vercel-ready
 
+### Couverture des TD (vue rapide)
+
+- **TD1 (MOS/NOS)** : Etablissements avec code NOS/placeholder, documents pouvant porter des codes terminologiques, MOS minimal (patients, pros, établissements, RDV, analyses, documents, messages).
+- **TD2 (FHIR POC)** : Exposition FHIR en lecture/écriture (ServiceRequest, Observation, DiagnosticReport, Patient, Organization, DocumentReference, ImagingStudy) + Subscriptions REST-hook persistées.
+- **TD3 (échanges)** : Scénarios d’échange CR + prescription + résultats (labo + imagerie) rejouables via commandes cURL ci-dessous ; notifications déclenchées sur créations.
 
 ## Modèles de données
 
@@ -29,8 +34,8 @@ Epitanie est une plateforme full-stack de coordination entre professionnels de s
 ### Alignement MOS/NOS (sous-ensemble ANS)
 
 - **MOS (modèle)** : Nous modélisons un noyau commun des objets de santé : patient + cercle de soins, professionnels (médecin/infirmier) liés à un établissement, établissements (hôpital, cabinet, laboratoire), rendez-vous, documents cliniques et analyses biologiques.
-- **NOS (nomenclature)** : Les établissements portent un `codeNOS` optionnel (affiché côté admin et utilisé pour identifier les laboratoires dans les analyses). Les documents cliniques embarquent `codesNOSOuAutres` pour référencer des terminologies (ex. codes NOS, CIM-10). Les libellés de type (type d’établissement, statut d’analyse, type de document) sont aujourd’hui des énumérations locales et non des JDV/TRE officiels.
-- **Portée limitée** : Pas d’URI de JDV/TRE, pas de versioning NOS ni de navigation SMT ; les libellés de statuts (rendez-vous, analyses) et types de documents ne sont pas alignés sur des jeux de valeurs ANS. Ce POC se limite à exposer le code NOS des établissements et à permettre le stockage de codes terminologiques sur les documents.
+- **NOS (nomenclature)** : Etablissements avec `codeNOS` optionnel (utilisé dans les analyses et exposé en FHIR), documents cliniques pouvant stocker des codes terminologiques (NOS/CIM-10). Pas de JDV/TRE ni SMT, libellés de statuts et types restent des énumérations locales.
+- **Portée limitée** : Pas de versioning NOS, pas de navigation SMT ; JDV/TRE non implémentés.
 
 ### Webservice FHIR (POC TD2/TD3)
 
@@ -47,7 +52,7 @@ Epitanie est une plateforme full-stack de coordination entre professionnels de s
 
 ### Scénarios TD1/TD2/TD3 (tests manuels)
 
-Prérequis : serveur lancé, Keycloak configuré, `TOKEN` Bearer valide, IDs Mongo pour `PATIENT_ID`, `LAB_ID` (Organization labo). Base : `BASE=http://localhost:3000`.
+Prérequis : serveur lancé, Keycloak configuré, `TOKEN` Bearer valide (récupéré via Keycloak `/protocol/openid-connect/token` avec vos credentials), IDs Mongo pour `PATIENT_ID`, `LAB_ID` (Organization labo). Base : `BASE=http://localhost:3000`.
 
 **TD1 (MOS/NOS)**
 - NOS : `curl -H "Authorization: Bearer $TOKEN" $BASE/api/fhir/organizations | jq .`
@@ -181,20 +186,34 @@ Le script vide les collections métier (patients, professionnels, rendez-vous, d
 
 ### Principes
 
-- Authentification JWT via Keycloak sur toutes les routes `/api/*`
-- Autorisation RBAC : chaque route vérifie rôles et permissions
-- Isolation des données : cercle de soins, appartenance client-patient, etc.
+- Authentification JWT via Keycloak sur les routes `/api/*`
+- Autorisation RBAC : rôles patient/médecin/infirmier/secrétariat/admin
+- Isolation des données : cercle de soins et appartenance patient-professionnel
 
-### Endpoints (à implémenter)
+### Endpoints applicatifs (hors FHIR)
 
 | Route | Méthode | Description |
 |-------|---------|-------------|
-| `/api/patients` | GET, POST | Gestion patients |
-| `/api/patients/[id]` | GET, PATCH | Détail et modification |
-| `/api/rendezvous` | GET, POST | Gestion rendez-vous |
-| `/api/documents` | GET, POST | Gestion documents cliniques |
-| `/api/analyses` | GET, POST | Gestion analyses biologiques |
+| `/api/patients` | GET | Liste des patients (filtre cercle de soins) |
+| `/api/patients/[id]` | GET | Dossier patient |
+| `/api/rendezvous` | GET, POST | RDV (création + filtre patientId/professionnel) |
+| `/api/documents` | GET, POST | Documents cliniques |
+| `/api/analyses` | GET, POST | Analyses internes (ServiceRequest/DiagnosticReport/Observation internes) |
 | `/api/messages` | GET, POST | Messagerie interne |
+
+### Endpoints FHIR (POC TD2/TD3)
+
+| Route | Méthode | Description |
+|-------|---------|-------------|
+| `/api/fhir/analyses` | GET | Bundle ServiceRequest/DiagnosticReport/Observation + ressources liées |
+| `/api/fhir/patients` | GET, POST, PUT | Patient FHIR (identifiants, INS) |
+| `/api/fhir/servicerequests` | GET, POST | Prescription (crée analyse interne) |
+| `/api/fhir/observations` | GET, POST | Observation (stockage raw) |
+| `/api/fhir/diagnosticreports` | GET, POST | DiagnosticReport (stockage raw) |
+| `/api/fhir/organizations` | GET, POST, PUT | Organization (NOS) |
+| `/api/fhir/documentreferences` | GET, POST, PUT | DocumentReference |
+| `/api/fhir/imaging` | GET, POST, PUT | ImagingStudy + DocumentReference |
+| `/api/fhir/subscriptions` | GET, POST | Subscriptions REST-hook persistées |
 
 ## Dashboards par rôle
 
@@ -218,21 +237,3 @@ Le script vide les collections métier (patients, professionnels, rendez-vous, d
 - Rendez-vous personnels
 - Documents et résultats d'analyses
 - Messagerie interne
-
-## Extensions futures
-
-- Intégration FHIR pour interopérabilité
-- Stockage fichiers (S3, Vercel Blob)
-- Signature électronique de documents
-- Notifications email/SMS
-- Calendrier interactif
-- Export PDF de dossiers
-
-## Support et contribution
-
-Pour les questions ou bugs, ouvrir une issue sur le dépôt.
-
----
-
-**Version**: 0.1.0 (POC Académique)
-**Licence**: MIT
